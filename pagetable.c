@@ -40,7 +40,23 @@ int allocate_frame(pgtbl_entry_t *p) {
 		// Write victim page to swap, if needed, and update pagetable
 		// IMPLEMENTATION NEEDED
 
+		// COMMENT ERRYTHING!!?
 
+		pgtbl_entry_t * entry = coremap[frame].pte;
+		if (entry->frame & PG_DIRTY){
+			evict_dirty_count += 1;
+			int offset = swap_pageout(frame, entry->swap_off);
+			entry->swap_off = offset;
+		}
+
+		else{
+			evict_clean_count += 1;
+		}
+
+		// PUT INTO FUNCTION!!!!
+		entry->frame &= ~PG_DIRTY;
+		entry->frame |= PG_ONSWAP;
+		entry->frame &= ~PG_VALID;
 	}
 
 	// Record information for virtual page that will now be stored in frame
@@ -136,21 +152,52 @@ char *find_physpage(addr_t vaddr, char type) {
 
 	// IMPLEMENTATION NEEDED
 	// Use top-level page directory to get pointer to 2nd-level page table
-	(void)idx; // To keep compiler happy - remove when you have a real use.
-
+	//(void)idx; // To keep compiler happy - remove when you have a real use.
+	if ((pgdir[idx].pde & PG_VALID) == 0){
+		pgdir[idx] = init_second_level();
+	}
 
 	// Use vaddr to get index into 2nd-level page table and initialize 'p'
-
-
+	pgtbl_entry_t * tables = (pgtbl_entry_t *) (pgdir[idx].pde & PAGE_MASK);
+	idx = PGTBL_INDEX(vaddr);
+	p = &tables[idx];
 
 	// Check if p is valid or not, on swap or not, and handle appropriately
+	if ((p->frame & PG_VALID) == 0){
+		miss_count += 1;
+		p->frame |= PG_VALID;
 
+		if ((p->frame & PG_ONSWAP) == 0){
+			int frame_page = allocate_frame(p);
+			init_frame(frame_page, vaddr);
+			p->frame |= PG_DIRTY;
+			coremap[frame_page].vaddr = (vaddr >> PAGE_SHIFT) << PAGE_SHIFT;
+		}
+
+		else{
+			swap_pagein(p->frame, p->swap_off);
+
+			int frame_page = allocate_frame(p);
+			p->frame = frame_page << PAGE_SHIFT;
+			p->frame &= ~PG_ONSWAP;
+			p->frame &= ~PG_DIRTY;
+			coremap[frame_page].vaddr = (vaddr >> PAGE_SHIFT) << PAGE_SHIFT;
+		}
+	}
+	else{
+		hit_count += 1;
+	}
 
 
 	// Make sure that p is marked valid and referenced. Also mark it
 	// dirty if the access type indicates that the page will be written to.
+	if (type == 'M' || type == 'S'){
+		p->frame |= PG_DIRTY;
+	}
 
-
+	p->frame |= PG_VALID;
+	p->frame |= PG_REF;
+	ref_count += 1;
 
 	// Call replacement algorithm's ref_fcn for this page
 	ref_fcn(p);
@@ -204,8 +251,7 @@ void print_pagedirectory() {
 	pgtbl_entry_t *pgtbl;
 
 	for (i=0; i < PTRS_PER_PGDIR; i++) {
-		if (!(pgdir[i].pde & PG_VALID)) {
-			if (first_invalid == -1) {
+		if (!(pgdir[i].pde & PG_VALID)) {			if (first_invalid == -1) {
 				first_invalid = i;
 			}
 			last_invalid = i;
