@@ -133,7 +133,7 @@ void init_frame(int frame, addr_t vaddr) {
 	// Calculate pointer to start of frame in (simulated) physical memory
 	char *mem_ptr = &physmem[frame*SIMPAGESIZE];
 	// Calculate pointer to location in page where we keep the vaddr
-        addr_t *vaddr_ptr = (addr_t *)(mem_ptr + sizeof(int));
+    addr_t *vaddr_ptr = (addr_t *)(mem_ptr + sizeof(int));
 	
 	memset(mem_ptr, 0, SIMPAGESIZE); // zero-fill the frame
 	*vaddr_ptr = vaddr;             // record the vaddr for error checking
@@ -271,7 +271,8 @@ void print_pagedirectory() {
 	pgtbl_entry_t *pgtbl;
 
 	for (i=0; i < PTRS_PER_PGDIR; i++) {
-		if (!(pgdir[i].pde & PG_VALID)) {			if (first_invalid == -1) {
+		if (!(pgdir[i].pde & PG_VALID)) {			
+			if (first_invalid == -1) {
 				first_invalid = i;
 			}
 			last_invalid = i;
