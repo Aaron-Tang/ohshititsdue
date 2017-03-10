@@ -27,7 +27,7 @@ int clock_evict() {
 		current_entry = coremap[clock_head].pte;
 
 		// Found, now break and return
-		if ((current_entry->frame) == 0){
+		if ((current_entry->frame & PG_REF) == 0){
 			break;
 		}
 		
