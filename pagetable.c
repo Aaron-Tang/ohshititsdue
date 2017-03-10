@@ -24,18 +24,15 @@ int evict_dirty_count = 0;
  * Counters for evictions should be updated appropriately in this function.
  */
 int allocate_frame(pgtbl_entry_t *p) {
-	int frame = -1;
 	int i;
-
+	int frame = -1;
 	for(i = 0; i < memsize; i++) {
 		if(!coremap[i].in_use) {
 			frame = i;
 			break;
 		}
 	}
-
 	if(frame == -1) { // Didn't find a free page.
-
 		// Call replacement algorithm's evict function to select victim
 		frame = evict_fcn();
 
@@ -43,28 +40,23 @@ int allocate_frame(pgtbl_entry_t *p) {
 		// Write victim page to swap, if needed, and update pagetable
 		// IMPLEMENTATION NEEDED
 
-		// Get pgtbl_entry that has the frame
-		pgtbl_entry_t * target_entry = coremap[frame].pte;
+		// COMMENT ERRYTHING!!?
 
-		if (PG_DIRTY & target_entry->frame){
-
-			// swap if frame is dirty
-			int offset = swap_pageout(frame, target_entry->swap_off);
-			// set new page offset
-			target_entry->swap_off = offset;
-
-			// update bits and counter
+		pgtbl_entry_t * entry = coremap[frame].pte;
+		if (entry->frame & PG_DIRTY){
 			evict_dirty_count += 1;
+			int offset = swap_pageout(frame, entry->swap_off);
+			entry->swap_off = offset;
 		}
 
 		else{
-			// update bit and counter
 			evict_clean_count += 1;
 		}
 
-		target_entry->frame &= ~PG_VALID;
-		target_entry->frame |= PG_ONSWAP;
-		target_entry->frame &= ~PG_DIRTY;
+		// PUT INTO FUNCTION!!!!
+		entry->frame &= ~PG_DIRTY;
+		entry->frame |= PG_ONSWAP;
+		entry->frame &= ~PG_VALID;
 	}
 
 	// Record information for virtual page that will now be stored in frame
@@ -133,7 +125,7 @@ void init_frame(int frame, addr_t vaddr) {
 	// Calculate pointer to start of frame in (simulated) physical memory
 	char *mem_ptr = &physmem[frame*SIMPAGESIZE];
 	// Calculate pointer to location in page where we keep the vaddr
-    addr_t *vaddr_ptr = (addr_t *)(mem_ptr + sizeof(int));
+        addr_t *vaddr_ptr = (addr_t *)(mem_ptr + sizeof(int));
 	
 	memset(mem_ptr, 0, SIMPAGESIZE); // zero-fill the frame
 	*vaddr_ptr = vaddr;             // record the vaddr for error checking
@@ -160,50 +152,39 @@ char *find_physpage(addr_t vaddr, char type) {
 
 	// IMPLEMENTATION NEEDED
 	// Use top-level page directory to get pointer to 2nd-level page table
-
-	// Check if pgdir_entry not initalized
-	if ((PG_VALID & pgdir[idx].pde) == 0){
-		//Initalizes all to 0
+	//(void)idx; // To keep compiler happy - remove when you have a real use.
+	if ((pgdir[idx].pde & PG_VALID) == 0){
 		pgdir[idx] = init_second_level();
 	}
 
 	// Use vaddr to get index into 2nd-level page table and initialize 'p'
 	pgtbl_entry_t * tables = (pgtbl_entry_t *) (pgdir[idx].pde & PAGE_MASK);
 	idx = PGTBL_INDEX(vaddr);
-	p = &tables[idx];	
+	p = &tables[idx];
 
 	// Check if p is valid or not, on swap or not, and handle appropriately
 	if ((p->frame & PG_VALID) == 0){
 		miss_count += 1;
 		p->frame |= PG_VALID;
 
-		// page hasn't been initalized yet
 		if ((p->frame & PG_ONSWAP) == 0){
-			// allocate and initalize frame
 			int frame_page = allocate_frame(p);
 			init_frame(frame_page, vaddr);
-
-			// Set dirty bit and vaddr
 			p->frame |= PG_DIRTY;
 			coremap[frame_page].vaddr = (vaddr >> PAGE_SHIFT) << PAGE_SHIFT;
 		}
 
-		// need to swap frame
 		else{
 			swap_pagein(p->frame, p->swap_off);
 
-			// put frame into page
 			int frame_page = allocate_frame(p);
-
-			// set appropriate bits and values
-			p->frame &= ~PG_DIRTY;
-			p->frame &= ~PG_ONSWAP;
 			p->frame = frame_page << PAGE_SHIFT;
+			p->frame &= ~PG_ONSWAP;
+			p->frame &= ~PG_DIRTY;
 			coremap[frame_page].vaddr = (vaddr >> PAGE_SHIFT) << PAGE_SHIFT;
 		}
 	}
 	else{
-		// update hit count since page exists already
 		hit_count += 1;
 	}
 
@@ -214,9 +195,8 @@ char *find_physpage(addr_t vaddr, char type) {
 		p->frame |= PG_DIRTY;
 	}
 
-	// Set appropriate bits and update count
-	p->frame |= PG_REF;
 	p->frame |= PG_VALID;
+	p->frame |= PG_REF;
 	ref_count += 1;
 
 	// Call replacement algorithm's ref_fcn for this page
@@ -271,8 +251,7 @@ void print_pagedirectory() {
 	pgtbl_entry_t *pgtbl;
 
 	for (i=0; i < PTRS_PER_PGDIR; i++) {
-		if (!(pgdir[i].pde & PG_VALID)) {			
-			if (first_invalid == -1) {
+		if (!(pgdir[i].pde & PG_VALID)) {			if (first_invalid == -1) {
 				first_invalid = i;
 			}
 			last_invalid = i;
