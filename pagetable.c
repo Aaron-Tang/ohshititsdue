@@ -54,17 +54,17 @@ int allocate_frame(pgtbl_entry_t *p) {
 			target_entry->swap_off = offset;
 
 			// update bits and counter
-			target_entry->frame |= PG_ONSWAP;
-			target_entry->frame &= ~PG_DIRTY;
 			evict_dirty_count += 1;
 		}
 
 		else{
-
 			// update bit and counter
-			target_entry->frame &= ~PG_VALID;
 			evict_clean_count += 1;
 		}
+
+		target_entry->frame &= ~PG_VALID;
+		target_entry->frame |= PG_ONSWAP;
+		target_entry->frame &= ~PG_DIRTY;
 	}
 
 	// Record information for virtual page that will now be stored in frame
@@ -168,8 +168,9 @@ char *find_physpage(addr_t vaddr, char type) {
 	}
 
 	// Use vaddr to get index into 2nd-level page table and initialize 'p'
-	pgtbl_entry_t * tables = (pgtbl_entry_t *) (pgdir[idx].pde - 1);
-	p = tables + PGTBL_INDEX(vaddr);	
+	pgtbl_entry_t * tables = (pgtbl_entry_t *) (pgdir[idx].pde & PAGE_MASK);
+	idx = PGTBL_INDEX(vaddr);
+	p = &tables[idx];	
 
 	// Check if p is valid or not, on swap or not, and handle appropriately
 	if ((p->frame & PG_VALID) == 0){
