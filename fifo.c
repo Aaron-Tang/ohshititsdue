@@ -20,6 +20,7 @@ int start;
 int fifo_evict() {
 	int frame = start;
 	start += 1;
+	
 	if (start == memsize){
 		start = 0;
 	}

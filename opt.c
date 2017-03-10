@@ -4,73 +4,72 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include "pagetable.h"
-
-// will give me
-// extern char* tracefile
-// MAXLINE
 #include "sim.h"
-
-// will give me conflicting types int vs unsigned
-// extern int memsize;
-
-extern int debug;
 
 extern struct frame *coremap;
 
-typedef struct llnode_t {
-  // vaddr, used to identify same page
+// Contains address and pointer to next node
+typedef struct linked_list_node {
   addr_t vaddr;
-  // pointer to next llnode
-  struct llnode_t* next;
-} llnode;
+  struct linked_list_node* next;
+} node;
 
-// head of trace list
-llnode* opt_head;
-// current trace working on
-llnode* opt_curr;
-// distance for m options
-int* opt_dist;
+// head of list
+node* head;
 
-int debug_count = 0;
+// current trace
+node* current;
+
+// list of next reference distances
+int* distance_to_reference;
 
 /* Page to evict is chosen using the optimal (aka MIN) algorithm. 
  * Returns the page frame number (which is also the index in the coremap)
  * for the page that is to be evicted.
  */
 int opt_evict() {
-  addr_t target_vaddr;
+  addr_t target;
   int i;
+
+  // loop through everything
   for (i = 0; i < memsize; i++) {
     // looking for this vaddr in the following trace
-    target_vaddr = coremap[i].vaddr;
+    target = coremap[i].vaddr;
 
-    // how soon will a frame i be visited
+    // set default distance as 0
     int distance = 0;
 
-    // start of traversal, current trace node
-    llnode* p = opt_curr->next;
-    while (p && p->vaddr != target_vaddr) {
-      distance++;
+    // search until found target or NULL. 
+    // Increment distance while searching
+    node* p = current->next;
+    while (p && p->vaddr != target) {
+      distance += 1;
       p = p->next;
     }
 
-    if (p) { // found target
-      opt_dist[i] = distance;
-    } else { // frame never show up again, best candidate
+    // found frame
+    if (p) {
+      distance_to_reference[i] = distance;
+    } 
+
+    // didn't find frame
+    else { 
       return i;
     }
   }
 
-  // every frame has some future occurrence, find longest distance
-  int longest_dist = -1;
-  int longest_frame = -1;
+  int farthest_distance = -1;
+  int fathest_frame = -1;
+
+  // every frame is referenced later
+  // find the longest distance that it is reference at
   for (i = 0; i < memsize; i++) {
-    if (opt_dist[i] > longest_dist) {
-      longest_frame = i;
-      longest_dist = opt_dist[i];
+    if (distance_to_reference[i] > farthest_distance) {
+      fathest_frame = i;
+      farthest_distance = distance_to_reference[i];
     }
   }
-  return longest_frame;
+  return fathest_frame;
 
 }
 
@@ -79,14 +78,13 @@ int opt_evict() {
  * Input: The page table entry for the page that is being accessed.
  */
 void opt_ref(pgtbl_entry_t *p) {
-  debug_count++;
-  // simply move the current node to next node
-  opt_curr = opt_curr->next;
-  // circular, deal with verify_page_versions
-  if (!opt_curr) {
-    opt_curr = opt_head;
+  // Go to next node
+  current = current->next;
+  
+  // If we hit the end, go back to the front
+  if (!current) {
+    current = head;
   }
-  return;
 }
 
 /* Initializes any data structures needed for this
@@ -94,36 +92,41 @@ void opt_ref(pgtbl_entry_t *p) {
  */
 void opt_init() {
   FILE* tfp = fopen(tracefile, "r");
-  char buf[MAXLINE];
+  char buff[MAXLINE];
   addr_t vaddr;
   char type;
 
-  opt_head = NULL;
-  opt_curr = NULL;
+  // Initalize head and current
+  head = NULL;
+  current = NULL;
 
-  while (fgets(buf, MAXLINE, tfp) != NULL) {
-    if (buf[0] != '=') {
-      sscanf(buf, "%c %lx", &type, &vaddr);
+  // Go through the buffer to the end
+  while (fgets(buff, MAXLINE, tfp) != NULL) {
+    if (buff[0] != '=') {
+      sscanf(buff, "%c %lx", &type, &vaddr);
 
-      // create new node, store vaddr
-      llnode* new_node = malloc(sizeof(llnode));
+      // create new node
+      node* new_node = malloc(sizeof(node));
       new_node->vaddr = (vaddr >> PAGE_SHIFT) << PAGE_SHIFT;
       new_node->next = NULL;
 
-      // properly add to list
-      if (opt_head == NULL) {
-        opt_head = new_node;
-        opt_curr = new_node;
-      } else {
-        opt_curr->next = new_node;
-        opt_curr = new_node;
+      // add to the list
+      if (head == NULL) {
+        head = new_node;
+        current = new_node;
+      } 
+      else {
+        current->next = new_node;
+        current = new_node;
       }
 
     }
   }
 
-  opt_curr = opt_head;
+  // Set the current node to be the head
+  current = head;
 
-  opt_dist = malloc(sizeof(int) * memsize);
-
+  // Allocate space for the list
+  distance_to_reference = malloc(sizeof(int) * memsize);
+  memset(distance_to_reference, 0, sizeof(int) * memsize);
 }
