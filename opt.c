@@ -128,5 +128,4 @@ void opt_init() {
 
   // Allocate space for the list
   distance_to_reference = malloc(sizeof(int) * memsize);
-  memset(distance_to_reference, 0, sizeof(int) * memsize);
 }
