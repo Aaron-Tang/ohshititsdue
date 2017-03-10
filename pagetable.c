@@ -271,8 +271,7 @@ void print_pagedirectory() {
 	pgtbl_entry_t *pgtbl;
 
 	for (i=0; i < PTRS_PER_PGDIR; i++) {
-		if (!(pgdir[i].pde & PG_VALID)) {			
-			if (first_invalid == -1) {
+		if (!(pgdir[i].pde & PG_VALID)) {			if (first_invalid == -1) {
 				first_invalid = i;
 			}
 			last_invalid = i;
